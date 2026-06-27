@@ -21,16 +21,16 @@ API_PORT = 9092
 
 NGINX_PATCH_SCRIPT = """from pathlib import Path
 
-spreadfleet = '''    # spread-fleet-managed
-    location = /spreadfleet {
-        return 302 /spreadfleet/;
+spider-radar = '''    # spider-radar-managed
+    location = / {
+        return 302 /;
     }
-    location /spreadfleet/ {
+    location / {
         root /var/www;
         index index.html;
-        try_files $uri $uri/ /spreadfleet/index.html;
+        try_files $uri $uri/ /index.html;
     }
-    location /spreadfleet/api/ {
+    location /api/ {
         proxy_pass http://127.0.0.1:9092/api/;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -39,10 +39,10 @@ spreadfleet = '''    # spread-fleet-managed
         proxy_read_timeout 600s;
     }
     location = /agent-ops {
-        return 302 /spreadfleet/;
+        return 302 /;
     }
     location /agent-ops/ {
-        return 302 /spreadfleet/;
+        return 302 /;
     }
     location /agent-ops/api/ {
         proxy_pass http://127.0.0.1:9092/api/;
@@ -52,7 +52,7 @@ spreadfleet = '''    # spread-fleet-managed
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_read_timeout 600s;
     }
-    # spread-fleet-managed-end
+    # spider-radar-managed-end
 '''
 
 for path_name, anchor in [
@@ -61,19 +61,19 @@ for path_name, anchor in [
 ]:
     path = Path(path_name)
     text = path.read_text()
-    if "# spread-fleet-managed" in text:
+    if "# spider-radar-managed" in text:
         print(f"skip {path_name}")
         continue
     if "# agent-ops-managed" in text:
         start = text.index("    # agent-ops-managed")
         end = text.index("    # agent-ops-managed-end") + len("    # agent-ops-managed-end\\n")
-        text = text[:start] + spreadfleet + text[end:]
+        text = text[:start] + spider-radar + text[end:]
         path.write_text(text)
         print(f"replaced agent-ops block in {path_name}")
         continue
     if anchor not in text:
         raise SystemExit(f"anchor not found in {path_name}")
-    path.write_text(text.replace(anchor, spreadfleet + anchor, 1))
+    path.write_text(text.replace(anchor, spider-radar + anchor, 1))
     print(f"patched {path_name}")
 """
 
@@ -115,11 +115,11 @@ def build_remote_script(jwt_secret: str, clone_url: str) -> str:
     return f"""#!/bin/bash
 set -euo pipefail
 export JWT_SECRET='{jwt_secret_esc}'
-REMOTE_DIR=/opt/spread-fleet
-WEB_DIR=/var/www/spreadfleet
+REMOTE_DIR=/opt/spider-radar
+WEB_DIR=/var/www/
 API_PORT={API_PORT}
 CLONE_URL='{clone_url}'
-SERVICE=spread-fleet-api
+SERVICE=spider-radar-api
 
 GW_PID=$(pgrep -f "uvicorn gateway.app.main:app" | head -1)
 export DATABASE_PASSWORD=$(tr '\\0' '\\n' < /proc/$GW_PID/environ | sed -n 's/^DF_DATABASE_PASSWORD=//p')
@@ -167,15 +167,15 @@ systemctl disable agent-ops-api 2>/dev/null || true
 
 cat > /etc/systemd/system/$SERVICE.service << UNIT
 [Unit]
-Description=SpreadFleet API (test)
+Description=Spider雷达 API (test)
 After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory=/opt/spread-fleet/backend
-EnvironmentFile=/opt/spread-fleet/backend/.env
-Environment=PYTHONPATH=/opt/spread-fleet/backend
-ExecStart=/opt/spread-fleet/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port $API_PORT
+WorkingDirectory=/opt/spider-radar/backend
+EnvironmentFile=/opt/spider-radar/backend/.env
+Environment=PYTHONPATH=/opt/spider-radar/backend
+ExecStart=/opt/spider-radar/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port $API_PORT
 Restart=always
 RestartSec=3
 
@@ -196,12 +196,12 @@ rm -rf "$WEB_DIR"/*
 cp -r dist/* "$WEB_DIR/"
 chown -R root:root "$WEB_DIR"
 
-echo {nginx_b64} | base64 -d > /tmp/patch_spreadfleet_nginx.py
-python3 /tmp/patch_spreadfleet_nginx.py
+echo {nginx_b64} | base64 -d > /tmp/patch_spider-radar_nginx.py
+python3 /tmp/patch_spider-radar_nginx.py
 nginx -t && systemctl reload nginx
 
 echo DEPLOY_OK
-curl -sf -o /dev/null -w "%{{http_code}}" http://127.0.0.1/spreadfleet/
+curl -sf -o /dev/null -w "%{{http_code}}" http://127.0.0.1/
 """
 
 
@@ -209,12 +209,12 @@ def main() -> None:
     print(
         "ERROR: Hangzhou (118.31.57.25) deploy is disabled.\n"
         "Spread-Sonar must deploy to Singapore (foxrouter.com / ap-southeast-1).\n"
-        "Hangzhou spread-fleet has been torn down. Singapore deploy script: TBD.",
+        "Hangzhou spider-radar has been torn down. Singapore deploy script: TBD.",
         file=sys.stderr,
     )
     sys.exit(1)
 
-    jwt_secret = os.environ.get("JWT_SECRET", "spread-fleet-test-jwt-secret-4918")
+    jwt_secret = os.environ.get("JWT_SECRET", "spider-radar-test-jwt-secret-4918")
     gh_token = os.environ.get("github_access_token") or os.environ.get("GH_TOKEN", "")
 
     print("==> Push latest to GitHub")
@@ -226,9 +226,9 @@ def main() -> None:
     )
     subprocess.run(["git", "push", "origin", "main"], cwd=ROOT, check=True)
 
-    clone_url = "https://github.com/SpreadXAI/spread-fleet.git"
+    clone_url = "https://github.com/SpreadXAI/spider-radar.git"
     if gh_token:
-        clone_url = f"https://{gh_token}@github.com/SpreadXAI/spread-fleet.git"
+        clone_url = f"https://{gh_token}@github.com/SpreadXAI/spider-radar.git"
 
     remote_script = build_remote_script(jwt_secret, clone_url)
     encoded = base64.b64encode(remote_script.encode()).decode()
@@ -238,7 +238,7 @@ def main() -> None:
     if status != "Success" or "DEPLOY_OK" not in out:
         print(f"Deploy failed: {status}", file=sys.stderr)
         sys.exit(1)
-    print("==> Deploy success: http://118.31.57.25/spreadfleet/")
+    print("==> Deploy success: http://118.31.57.25/")
 
 
 if __name__ == "__main__":

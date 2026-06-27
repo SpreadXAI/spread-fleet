@@ -34,7 +34,7 @@
 
     <div v-if="auth.user?.is_admin" class="border-t border-slate-100 pt-6">
       <a
-        href="/spreadfleet/admin"
+        href="/admin"
         target="_blank"
         rel="noopener noreferrer"
         class="btn-secondary inline-flex w-full justify-center"

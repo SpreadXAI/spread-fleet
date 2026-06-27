@@ -3,7 +3,7 @@
     <header class="border-b border-slate-200 bg-slate-900 px-8 py-4 text-white">
       <div class="flex items-center justify-between">
         <div>
-          <h1 class="text-xl font-bold">SpreadFleet 管理台</h1>
+          <h1 class="text-xl font-bold">Spider雷达 管理台</h1>
           <p class="mt-1 text-sm text-slate-300">平台运营与套餐管理</p>
         </div>
         <button class="rounded-lg bg-white/10 px-3 py-2 text-sm hover:bg-white/20" @click="logout">退出</button>
@@ -12,7 +12,7 @@
 
     <div v-if="!auth.isAuthenticated" class="p-8">
       <p class="text-slate-600">请先在主站登录管理员账号，再打开此页面。</p>
-      <a href="/spreadfleet/login" class="btn-primary mt-4 inline-flex">去登录</a>
+      <a href="/login" class="btn-primary mt-4 inline-flex">去登录</a>
     </div>
 
     <div v-else-if="!auth.user?.is_admin" class="p-8 text-red-600">当前账号无管理员权限</div>
@@ -58,7 +58,7 @@ onMounted(async () => {
   if (auth.token) {
     try {
       auth.user = await api.me(auth.token)
-      localStorage.setItem('spread_fleet_user', JSON.stringify(auth.user))
+      localStorage.setItem('spider_radar_user', JSON.stringify(auth.user))
     } catch {
       auth.logout()
     }

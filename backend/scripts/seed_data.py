@@ -108,7 +108,7 @@ def seed_admin() -> None:
             )
             db.add(user)
             db.flush()
-            create_workspace(db, owner=user, name="SpreadFleet 管理空间")
+            create_workspace(db, owner=user, name="Spider雷达 管理空间")
             db.commit()
             print(f"Admin created: {email}")
         else:

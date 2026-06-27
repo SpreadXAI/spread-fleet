@@ -17,10 +17,10 @@ nginx_script = text[start:end]
 nginx_b64 = base64.b64encode(nginx_script.encode()).decode()
 
 cmd = (
-    f"echo {nginx_b64} | base64 -d > /tmp/patch_spreadfleet_nginx.py && "
-    "python3 /tmp/patch_spreadfleet_nginx.py && nginx -t && systemctl reload nginx && "
-    "curl -sf -o /dev/null -w '%{http_code}' http://127.0.0.1/spreadfleet/ && echo && "
-    "curl -sf http://127.0.0.1/spreadfleet/api/health"
+    f"echo {nginx_b64} | base64 -d > /tmp/patch_spider-radar_nginx.py && "
+    "python3 /tmp/patch_spider-radar_nginx.py && nginx -t && systemctl reload nginx && "
+    "curl -sf -o /dev/null -w '%{http_code}' http://127.0.0.1/ && echo && "
+    "curl -sf http://127.0.0.1/api/health"
 )
 
 client = AcsClient(os.environ["ALIYUN_ACCESS_KEY_ID"], os.environ["ALIYUN_ACCESS_KEY_SECRET"], "cn-hangzhou")

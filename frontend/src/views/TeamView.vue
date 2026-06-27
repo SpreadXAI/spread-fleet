@@ -93,7 +93,7 @@ async function onSwitch() {
   current.value = await api.switchWorkspace(auth.token, selectedId.value)
   const me = await api.me(auth.token)
   auth.user = me
-  localStorage.setItem('spread_fleet_user', JSON.stringify(me))
+  localStorage.setItem('spider_radar_user', JSON.stringify(me))
   members.value = await api.workspaceMembers(auth.token)
 }
 

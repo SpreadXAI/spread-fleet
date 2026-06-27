@@ -2,8 +2,8 @@
   <div class="flex min-h-screen items-center justify-center bg-gradient-to-br from-brand-900 via-slate-900 to-slate-800 p-4">
     <div class="card w-full max-w-md p-8">
       <div class="mb-6 text-center">
-        <h1 class="text-2xl font-bold text-slate-900">SpreadFleet</h1>
-        <p class="mt-2 text-sm text-slate-500">传播舰队 · 使用邮箱登录</p>
+        <h1 class="text-2xl font-bold text-slate-900">Spider雷达</h1>
+        <p class="mt-2 text-sm text-slate-500">蜘蛛雷达 · 使用邮箱登录</p>
       </div>
       <form class="space-y-4" @submit.prevent="onSubmit">
         <div>

@@ -1,22 +1,13 @@
-# Spread-Sonar（传播声纳）
+# Spider雷达（Spread-Sonar）
 
 社媒账号舰队管理与任务编排平台。
 
-> 产品名：**Spread-Sonar**。仓库仍为 `spread-fleet`（GitHub: SpreadXAI/spread-fleet）。
-
-- Frontend: Vue 3 + Vite + Tailwind
-- Backend: FastAPI + PostgreSQL
-- **部署区域：新加坡（ap-southeast-1）**，与 Tactile 生产（foxrouter.com）同区域
-
-## 部署说明
-
-**禁止部署到杭州（118.31.57.25）。** 原杭州测试实例已下线。
-
-新加坡部署脚本（待建）：
-
-```bash
-python3 scripts/deploy-singapore.py
-```
+| 项 | 值 |
+|----|-----|
+| GitHub | https://github.com/SpreadXAI/spider-radar |
+| 生产（新加坡） | http://43.98.185.179/ |
+| ECS | `i-t4n571mpi11mkib9ubxj`（2 核 4G，ap-southeast-1a） |
+| 数据库 | 新加坡 RDS `tactile` / schema `spider_radar` |
 
 ## 本地开发
 
@@ -30,11 +21,22 @@ uvicorn app.main:app --reload --port 9092
 cd frontend && npm install && npm run dev
 ```
 
-## E2E
+## 部署（新加坡）
 
-本地或新加坡环境 URL 由 `E2E_BASE_URL` 指定。
+```bash
+python3 scripts/deploy-singapore.py
+```
+
+**禁止**使用已废弃的 `scripts/ecs-deploy.py`（杭州）。
+
+## 管理员
+
+- 邮箱：`admin@spreadx.ai`
+- 密码：`SpiderRadar@Admin2026`
+
+## E2E
 
 ```bash
 cd frontend && npm ci && npx playwright install chromium
-E2E_BASE_URL=https://<singapore-host>/spread-sonar npm run test:e2e
+E2E_BASE_URL=http://43.98.185.179 npm run test:e2e
 ```

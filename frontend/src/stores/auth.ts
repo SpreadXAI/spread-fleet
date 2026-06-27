@@ -2,8 +2,8 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { api, type User } from '@/api/client'
 
-const TOKEN_KEY = 'spread_fleet_token'
-const USER_KEY = 'spread_fleet_user'
+const TOKEN_KEY = 'spider_radar_token'
+const USER_KEY = 'spider_radar_user'
 
 export const useAuthStore = defineStore('auth', () => {
   const token = ref<string | null>(localStorage.getItem(TOKEN_KEY))

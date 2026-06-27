@@ -4,7 +4,7 @@ import { fileURLToPath, URL } from 'node:url'
 
 export default defineConfig({
   plugins: [vue()],
-  base: '/spreadfleet/',
+  base: '/',
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
@@ -12,10 +12,9 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      '/spreadfleet/api': {
+      '/api': {
         target: 'http://127.0.0.1:9092',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/spreadfleet/, ''),
       },
     },
   },

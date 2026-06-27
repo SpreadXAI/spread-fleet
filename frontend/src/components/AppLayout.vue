@@ -2,8 +2,8 @@
   <div class="flex min-h-screen bg-slate-100">
     <aside class="flex w-64 shrink-0 flex-col border-r border-slate-200 bg-brand-900 text-white">
       <div class="border-b border-white/10 px-5 py-5">
-        <div class="text-lg font-bold tracking-tight">SpreadFleet</div>
-        <div class="mt-1 text-xs text-slate-300">传播舰队 · 测试环境</div>
+        <div class="text-lg font-bold tracking-tight">Spider雷达</div>
+        <div class="mt-1 text-xs text-slate-300">蜘蛛雷达 · 测试环境</div>
       </div>
       <nav class="flex-1 space-y-1 p-3">
         <RouterLink
@@ -67,7 +67,7 @@ const titles: Record<string, { title: string; subtitle?: string }> = {
   profile: { title: '个人资料', subtitle: '设置昵称与查看邮箱' },
 }
 
-const title = computed(() => titles[String(route.name)]?.title ?? 'SpreadFleet')
+const title = computed(() => titles[String(route.name)]?.title ?? 'Spider雷达')
 const subtitle = computed(() => titles[String(route.name)]?.subtitle)
 
 function isActive(path: string) {

@@ -27,7 +27,7 @@
       <div class="card p-6">
         <h2 class="font-semibold text-slate-900">环境说明</h2>
         <p class="mt-3 text-sm leading-relaxed text-slate-600">
-          当前为 <strong>测试环境</strong>（SpreadFleet / 传播舰队），数据库 schema：<code class="rounded bg-slate-100 px-1">agent_ops_test</code>
+          当前为 <strong>测试环境</strong>（Spider雷达 / 蜘蛛雷达），数据库 schema：<code class="rounded bg-slate-100 px-1">spider_radar</code>
           schema。Tactile Agent 执行接口尚未接入，执行日志为演示数据。
         </p>
       </div>

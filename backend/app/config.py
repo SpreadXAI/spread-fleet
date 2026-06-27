@@ -7,23 +7,25 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-    app_name: str = "spread-fleet"
+    app_name: str = "spider-radar"
     environment: str = "test"
     api_prefix: str = "/api"
 
-    database_host: str = Field(default="pgm-bp103m50b4w6569h.pg.rds.aliyuncs.com", validation_alias="DATABASE_HOST")
+    database_host: str = Field(
+        default="pgm-t4ncw5oi9x3919koro.pg.rds.aliyuncs.com", validation_alias="DATABASE_HOST"
+    )
     database_port: int = Field(default=5432, validation_alias="DATABASE_PORT")
     database_user: str = Field(default="tactile_app", validation_alias="DATABASE_USER")
     database_password: str = Field(default="", validation_alias="DATABASE_PASSWORD")
     database_name: str = Field(default="tactile", validation_alias="DATABASE_NAME")
-    database_schema: str = "agent_ops_test"
+    database_schema: str = "spider_radar"
 
-    jwt_secret: str = "spread-fleet-test-secret-change-in-prod"
+    jwt_secret: str = "spider-radar-test-secret-change-in-prod"
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 60 * 24 * 7
 
     admin_email: str = "admin@spreadx.ai"
-    admin_password: str = "SpreadFleet@Admin2026"
+    admin_password: str = "SpiderRadar@Admin2026"
 
     cors_origins: str = "*"
 
