@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 from sqlalchemy.orm import Session
 
 from app.config import Settings
@@ -9,20 +11,17 @@ from app.models import AccountPrompt, AccountStatus, ExecutionLog, SocialAccount
 from app.tactile.client import TactileClient, TactileError
 
 
-def build_work_content(
-    *,
-    account: SocialAccount,
-    prompt_text: str,
-    persona: str = "",
-) -> str:
-    lines = [
-        "[ENV]",
-        f"TWITTER_COOKIE={account.session_cookie or ''}",
-        f"SPIDER_RADAR_ACCOUNT_ID={account.id}",
-        f"SPIDER_RADAR_HANDLE={account.handle}",
-        "[/ENV]",
-        "",
-    ]
+def build_dispatch_env(account: SocialAccount) -> dict[str, str]:
+    """Task-level runtime env passed via Tactile work_item.dispatch_env_json."""
+    return {
+        "TWITTER_COOKIE": account.session_cookie or "",
+        "SPIDER_RADAR_ACCOUNT_ID": str(account.id),
+        "SPIDER_RADAR_HANDLE": account.handle,
+    }
+
+
+def build_work_content(*, prompt_text: str, persona: str = "") -> str:
+    lines: list[str] = []
     if persona.strip():
         lines.extend([f"Persona: {persona.strip()}", ""])
     body = prompt_text.strip() or "Browse Twitter timeline and report activity."
@@ -46,7 +45,8 @@ def dispatch_account_run(
     prompt = db.query(AccountPrompt).filter(AccountPrompt.account_id == account.id).first()
     persona = prompt.persona if prompt else ""
     prompt_text = prompt_override if prompt_override is not None else (prompt.prompt_text if prompt else "")
-    content = build_work_content(account=account, prompt_text=prompt_text, persona=persona)
+    content = build_work_content(prompt_text=prompt_text, persona=persona)
+    dispatch_env_json = json.dumps(build_dispatch_env(account), ensure_ascii=False)
 
     client = TactileClient(settings)
     name = f"Spider Radar @{account.handle}"
@@ -56,6 +56,7 @@ def dispatch_account_run(
             agent_id=settings.tactile_agent_id,
             name=name,
             content=content,
+            dispatch_env_json=dispatch_env_json,
         )
     except TactileError as exc:
         log = ExecutionLog(

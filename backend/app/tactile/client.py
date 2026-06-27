@@ -54,17 +54,17 @@ class TactileClient:
         agent_id: int,
         name: str,
         content: str,
+        dispatch_env_json: str | None = None,
     ) -> dict[str, Any]:
-        return self._request(
-            "POST",
-            "/work",
-            {
-                "name": name,
-                "workspace_id": workspace_id,
-                "agent_id": agent_id,
-                "content": content,
-            },
-        )
+        body: dict[str, Any] = {
+            "name": name,
+            "workspace_id": workspace_id,
+            "agent_id": agent_id,
+            "content": content,
+        }
+        if dispatch_env_json:
+            body["dispatch_env_json"] = dispatch_env_json
+        return self._request("POST", "/work", body)
 
     def get_work(self, work_id: int) -> dict[str, Any]:
         return self._request("GET", f"/work/{work_id}")

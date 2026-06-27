@@ -78,7 +78,8 @@ E2E_BASE_URL=http://43.98.185.179 npm run test:e2e
 1. 登录 Spider雷达 → 购号 → 进入账号详情
 2. 填写 Twitter Session Cookie → **保存 Cookie**
 3. 配置 Prompt → **立即执行** → 后端 `POST /api/my/accounts/{id}/run` 派发到 Tactile
-4. 在 [foxrouter.com](https://foxrouter.com) SpreadX-twitter 空间查看 work 状态
+4. Cookie 等运行时变量通过 Tactile `dispatch_env_json` 注入 worker（不再写入 prompt content）
+5. 在 [foxrouter.com](https://foxrouter.com) SpreadX-twitter 空间查看 work 状态
 
 ### 服务器环境变量（`backend/.env`）
 
