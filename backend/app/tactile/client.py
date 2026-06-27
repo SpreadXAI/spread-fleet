@@ -84,5 +84,8 @@ class TactileClient:
     def list_workspace_skills(self, workspace_id: int) -> dict[str, Any]:
         return self._request("GET", f"/skill-plaza/manage?workspace_id={workspace_id}")
 
+    def list_skill_market(self, workspace_id: int) -> dict[str, Any]:
+        return self._request("GET", f"/skill-plaza/market?workspace_id={workspace_id}&page_size=100")
+
     def get_skill(self, skill_id: int) -> dict[str, Any]:
         return self._request("GET", f"/skill-plaza/{skill_id}")

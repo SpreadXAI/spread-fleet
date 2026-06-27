@@ -272,12 +272,14 @@ class SkillCatalogSkill(BaseModel):
     current_version_id: int | None = None
     current_version: str | None = None
     workspace_id: int | None = None
+    readonly: bool = False
 
 
 class SkillCatalogOut(BaseModel):
     platform: list[SkillCatalogSkill] = Field(default_factory=list)
     workspace: list[SkillCatalogSkill] = Field(default_factory=list)
     mine: list[SkillCatalogSkill] = Field(default_factory=list)
+    all: list[SkillCatalogSkill] = Field(default_factory=list)
 
 
 class AccountSkillBindingOut(BaseModel):
@@ -316,12 +318,15 @@ class BatchSkillInstallResult(BaseModel):
 
 
 class SkillCreateSessionRequest(BaseModel):
+    account_id: int = Field(ge=1)
     prompt: str = Field(min_length=10)
     title: str = Field(default="Spider Radar Skill", max_length=200)
-    account_id: int | None = None
 
 
 class SkillCreateSessionOut(BaseModel):
     tactile_work_id: int | None
     tactile_session_id: str | None
+    tactile_agent_id: int | None = None
+    account_id: int
+    account_handle: str
     message: str

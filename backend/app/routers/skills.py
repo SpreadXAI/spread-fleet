@@ -1,5 +1,9 @@
 """Skill catalog, account bindings, batch install, and skill authoring."""
 
+from __future__ import annotations
+
+import json
+
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -8,34 +12,22 @@ from sqlalchemy.orm import Session
 from app.auth import get_current_user
 from app.config import get_settings
 from app.database import get_db
-from app.models import AccountSkillBinding, SkillLayer, SocialAccount, User
+from app.models import AccountSkillBinding, SkillLayer, User
 from app.routers.app import _active_workspace, _workspace_account
 from app.schemas import (
     AccountSkillBindingOut,
     BatchSkillInstallRequest,
     BatchSkillInstallResult,
     SkillCatalogOut,
-    SkillCatalogSkill,
     SkillCreateSessionOut,
     SkillCreateSessionRequest,
 )
 from app.tactile.client import TactileClient, TactileError
+from app.tactile.dispatcher import build_dispatch_env
+from app.tactile.skill_catalog import PLATFORM_AUTHORING_SLUGS, build_skill_catalog, platform_authoring_bindings
 from app.tactile.skill_sync import install_skill_on_accounts, sync_account_skills_to_agent
 
 router = APIRouter(prefix="/skills", tags=["skills"])
-
-
-def _skill_summary(item: dict) -> SkillCatalogSkill:
-    return SkillCatalogSkill(
-        id=int(item["id"]),
-        slug=item.get("slug", ""),
-        name=item.get("name", ""),
-        description=item.get("description", ""),
-        layer=SkillLayer.workspace,
-        current_version_id=item.get("current_version_id"),
-        current_version=item.get("current_version"),
-        workspace_id=item.get("workspace_id"),
-    )
 
 
 @router.get("/catalog", response_model=SkillCatalogOut)
@@ -49,28 +41,20 @@ def list_skill_catalog(
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Tactile not configured")
     client = TactileClient(settings)
     try:
-        data = client.list_workspace_skills(settings.tactile_workspace_id)
+        return build_skill_catalog(settings, client)
     except TactileError as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=exc.detail) from exc
 
-    platform: list[SkillCatalogSkill] = []
-    if settings.tactile_template_skill_id and settings.tactile_template_skill_version_id:
-        platform.append(
-            SkillCatalogSkill(
-                id=settings.tactile_template_skill_id,
-                slug="platform-base",
-                name="Platform Twitter Ops (template)",
-                description="Base layer skill copied from platform template agent.",
-                layer=SkillLayer.platform,
-                current_version_id=settings.tactile_template_skill_version_id,
-                current_version=None,
-                workspace_id=settings.tactile_workspace_id,
-            )
-        )
 
-    workspace_items = [_skill_summary(s) for s in (data.get("workspace") or [])]
-    mine_items = [_skill_summary(s) for s in (data.get("mine") or [])]
-    return SkillCatalogOut(platform=platform, workspace=workspace_items, mine=mine_items)
+@router.get("/platform", response_model=SkillCatalogOut)
+def list_platform_skills(
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> SkillCatalogOut:
+    """Platform-built skills only (skill-creator, skill-ops) — read-only in Spider Radar."""
+    catalog = list_skill_catalog(db, current_user)
+    authoring = [s for s in catalog.platform if s.slug in PLATFORM_AUTHORING_SLUGS]
+    return SkillCatalogOut(platform=authoring, workspace=[], mine=[], all=authoring)
 
 
 @router.get("/my/accounts/{account_id}/bindings", response_model=list[AccountSkillBindingOut])
@@ -97,6 +81,19 @@ def batch_install_skill(
 ) -> BatchSkillInstallResult:
     settings = get_settings()
     ws = _active_workspace(db, current_user)
+    client = TactileClient(settings)
+    try:
+        catalog = build_skill_catalog(settings, client)
+    except TactileError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=exc.detail) from exc
+
+    installable = {s.id: s for s in catalog.workspace + catalog.mine if not s.readonly}
+    if payload.skill_id not in installable:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Platform authoring skills cannot be batch-installed; pick a workspace skill",
+        )
+
     account_ids: list[int] = []
     for aid in payload.account_ids:
         account = _workspace_account(db, current_user, aid)
@@ -104,16 +101,9 @@ def batch_install_skill(
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account not in workspace")
         account_ids.append(aid)
 
-    slug = payload.slug
-    name = payload.name
-    if not slug or not name:
-        client = TactileClient(settings)
-        try:
-            detail = client.get_skill(payload.skill_id)
-            slug = slug or detail.get("slug", "")
-            name = name or detail.get("name", "")
-        except TactileError as exc:
-            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=exc.detail) from exc
+    skill_meta = installable[payload.skill_id]
+    slug = payload.slug or skill_meta.slug
+    name = payload.name or skill_meta.name
 
     try:
         affected = install_skill_on_accounts(
@@ -145,8 +135,15 @@ def start_skill_create_session(
     db: Annotated[Session, Depends(get_db)],
     current_user: Annotated[User, Depends(get_current_user)],
 ) -> SkillCreateSessionOut:
-    del db
     settings = get_settings()
+    account = _workspace_account(db, current_user, payload.account_id)
+
+    if not account.session_cookie:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Selected account must have a session cookie before skill authoring",
+        )
+
     agent_id = settings.tactile_skill_creator_agent_id
     if not agent_id or not settings.tactile_workspace_id:
         raise HTTPException(
@@ -154,24 +151,33 @@ def start_skill_create_session(
             detail="Skill creator agent not configured (TACTILE_SKILL_CREATOR_AGENT_ID)",
         )
 
-    account_hint = ""
-    if payload.account_id:
-        account_hint = f"\nTarget account id: {payload.account_id}"
-
-    content = (
-        f"Create a new Tactile skill for Spider Radar account nurturing.\n\n"
-        f"Skill goal:\n{payload.prompt.strip()}\n"
-        f"{account_hint}\n\n"
-        f"Use skill-creator to draft SKILL.md with clear inputs and outputs, "
-        f"then use tactile-ops to upload to Skill Plaza for workspace {settings.tactile_workspace_id}."
-    )
     client = TactileClient(settings)
     try:
+        authoring_bindings = platform_authoring_bindings(settings, client)
+        if not authoring_bindings:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Platform skill-creator / skill-ops not found in Tactile catalog",
+            )
+        client.update_agent_bindings(agent_id, {"skills": authoring_bindings})
+
+        dispatch_env_json = json.dumps(build_dispatch_env(account), ensure_ascii=False)
+        content = (
+            f"Author a new Spider Radar nurturing skill for Twitter account @{account.handle}.\n\n"
+            f"Account display name: {account.display_name}\n"
+            f"Account bio: {account.bio or '(none)'}\n\n"
+            f"Skill goal:\n{payload.prompt.strip()}\n\n"
+            f"Use skill-creator to draft SKILL.md (define inputs/outputs clearly), "
+            f"then use spider-radar-ops / tactile-ops to upload to Skill Plaza "
+            f"workspace {settings.tactile_workspace_id}.\n"
+            f"Test against the injected TWITTER_COOKIE for this account when validating behavior."
+        )
         work = client.create_work(
             workspace_id=settings.tactile_workspace_id,
             agent_id=agent_id,
-            name=payload.title or "Spider Radar Skill Authoring",
+            name=payload.title or f"Skill for @{account.handle}",
             content=content,
+            dispatch_env_json=dispatch_env_json,
         )
     except TactileError as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=exc.detail) from exc
@@ -179,7 +185,10 @@ def start_skill_create_session(
     return SkillCreateSessionOut(
         tactile_work_id=work.get("id"),
         tactile_session_id=work.get("session_id"),
-        message="Skill authoring session started in Tactile",
+        tactile_agent_id=agent_id,
+        account_id=account.id,
+        account_handle=account.handle,
+        message=f"Skill authoring started for @{account.handle} with platform skill-creator + skill-ops",
     )
 
 

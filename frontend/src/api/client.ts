@@ -131,6 +131,13 @@ export type AccountRunResult = {
   message: string
 }
 
+export type SkillCatalog = {
+  platform: SkillCatalogItem[]
+  workspace: SkillCatalogItem[]
+  mine: SkillCatalogItem[]
+  all: SkillCatalogItem[]
+}
+
 export type SkillCatalogItem = {
   id: number
   slug: string
@@ -140,12 +147,7 @@ export type SkillCatalogItem = {
   current_version_id: number | null
   current_version: string | null
   workspace_id: number | null
-}
-
-export type SkillCatalog = {
-  platform: SkillCatalogItem[]
-  workspace: SkillCatalogItem[]
-  mine: SkillCatalogItem[]
+  readonly?: boolean
 }
 
 export type AccountSkillBinding = {
@@ -258,13 +260,16 @@ export const api = {
     ),
   createSkillSession: (
     token: string,
-    body: { prompt: string; title?: string; account_id?: number },
+    body: { account_id: number; prompt: string; title?: string },
   ) =>
-    request<{ tactile_work_id: number | null; tactile_session_id: string | null; message: string }>(
-      '/skills/create-session',
-      token,
-      { method: 'POST', body: JSON.stringify(body) },
-    ),
+    request<{
+      tactile_work_id: number | null
+      tactile_session_id: string | null
+      tactile_agent_id: number | null
+      account_id: number
+      account_handle: string
+      message: string
+    }>('/skills/create-session', token, { method: 'POST', body: JSON.stringify(body) }),
   listSchedules: (token: string, accountId: number) =>
     request<Schedule[]>(`/my/accounts/${accountId}/schedules`, token),
   createSchedule: (

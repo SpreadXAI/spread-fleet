@@ -45,6 +45,14 @@ class Settings(BaseSettings):
         default="http://43.98.185.179/api", validation_alias="SPIDER_RADAR_PUBLIC_API_BASE"
     )
     tactile_skill_creator_agent_id: int = Field(default=0, validation_alias="TACTILE_SKILL_CREATOR_AGENT_ID")
+    tactile_skill_creator_skill_id: int = Field(default=0, validation_alias="TACTILE_SKILL_CREATOR_SKILL_ID")
+    tactile_skill_creator_skill_version_id: int = Field(
+        default=0, validation_alias="TACTILE_SKILL_CREATOR_SKILL_VERSION_ID"
+    )
+    tactile_skill_ops_skill_id: int = Field(default=0, validation_alias="TACTILE_SKILL_OPS_SKILL_ID")
+    tactile_skill_ops_skill_version_id: int = Field(
+        default=0, validation_alias="TACTILE_SKILL_OPS_SKILL_VERSION_ID"
+    )
     tactile_callback_secret: str = Field(default="", validation_alias="TACTILE_CALLBACK_SECRET")
 
     @property
