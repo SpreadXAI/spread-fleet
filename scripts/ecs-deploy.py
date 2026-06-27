@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Deploy SpreadFleet to imjson ECS via Aliyun Cloud Assistant."""
+"""DEPRECATED: Hangzhou deploy disabled. Use scripts/deploy-singapore.py for Spread-Sonar."""
 
 from __future__ import annotations
 
@@ -206,6 +206,14 @@ curl -sf -o /dev/null -w "%{{http_code}}" http://127.0.0.1/spreadfleet/
 
 
 def main() -> None:
+    print(
+        "ERROR: Hangzhou (118.31.57.25) deploy is disabled.\n"
+        "Spread-Sonar must deploy to Singapore (foxrouter.com / ap-southeast-1).\n"
+        "Hangzhou spread-fleet has been torn down. Singapore deploy script: TBD.",
+        file=sys.stderr,
+    )
+    sys.exit(1)
+
     jwt_secret = os.environ.get("JWT_SECRET", "spread-fleet-test-jwt-secret-4918")
     gh_token = os.environ.get("github_access_token") or os.environ.get("GH_TOKEN", "")
 
