@@ -1,4 +1,4 @@
-"""Seed mock marketplace accounts and sample execution logs."""
+"""Seed mock data, plans, admin account, workspace migration."""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from sqlalchemy import func
 
+from app.auth import hash_password
 from app.config import get_settings
 from app.database import SessionLocal, ensure_schema, engine
 from app.models import (
@@ -19,13 +20,49 @@ from app.models import (
     ExecutionLog,
     SocialAccount,
     TaskStatus,
+    User,
+    Workspace,
+    WorkspaceMember,
+    WorkspaceMemberRole,
+    WorkspacePlan,
 )
+from app.workspace import create_workspace, ensure_user_workspace, migrate_accounts_to_workspaces
 
 TIER_PRICES = {
     AccountTier.basic: 9.9,
     AccountTier.standard: 29.9,
     AccountTier.premium: 99.9,
 }
+
+PLANS = [
+    {
+        "code": "starter",
+        "name": "入门版",
+        "description": "小团队试用，适合 1-3 人协作",
+        "max_accounts": 5,
+        "max_members": 3,
+        "max_schedules_per_account": 2,
+        "price_monthly": 0,
+    },
+    {
+        "code": "growth",
+        "name": "成长版",
+        "description": "中型团队，更多账号与成员席位",
+        "max_accounts": 20,
+        "max_members": 10,
+        "max_schedules_per_account": 3,
+        "price_monthly": 299,
+    },
+    {
+        "code": "fleet",
+        "name": "舰队版",
+        "description": "大规模账号舰队编排",
+        "max_accounts": 100,
+        "max_members": 30,
+        "max_schedules_per_account": 3,
+        "price_monthly": 999,
+    },
+]
 
 BIOS = [
     "Tech enthusiast | AI & automation",
@@ -42,8 +79,48 @@ FIRST = ["alex", "sam", "jordan", "taylor", "casey", "riley", "morgan", "jamie",
 LAST = ["chen", "wang", "kim", "patel", "garcia", "lee", "brown", "martin", "singh", "nguyen"]
 
 
-def seed_accounts(count: int = 200) -> None:
+def seed_plans() -> None:
+    db = SessionLocal()
+    try:
+        for p in PLANS:
+            if db.query(WorkspacePlan).filter(WorkspacePlan.code == p["code"]).first():
+                continue
+            db.add(WorkspacePlan(**p))
+        db.commit()
+        print("Plans seeded")
+    finally:
+        db.close()
+
+
+def seed_admin() -> None:
     settings = get_settings()
+    db = SessionLocal()
+    try:
+        email = settings.admin_email.strip().lower()
+        user = db.query(User).filter((User.email == email) | (User.username == email)).first()
+        if user is None:
+            user = User(
+                username=email,
+                email=email,
+                display_name="管理员",
+                password_hash=hash_password(settings.admin_password),
+                is_admin=True,
+            )
+            db.add(user)
+            db.flush()
+            create_workspace(db, owner=user, name="SpreadFleet 管理空间")
+            db.commit()
+            print(f"Admin created: {email}")
+        else:
+            user.is_admin = True
+            ensure_user_workspace(db, user)
+            db.commit()
+            print(f"Admin updated: {email}")
+    finally:
+        db.close()
+
+
+def seed_accounts(count: int = 200) -> None:
     ensure_schema()
     Base.metadata.create_all(bind=engine)
 
@@ -82,10 +159,22 @@ def seed_accounts(count: int = 200) -> None:
         db.close()
 
 
-def seed_demo_logs_for_user_accounts() -> None:
+def bootstrap_existing_users() -> None:
     db = SessionLocal()
     try:
-        owned = db.query(SocialAccount).filter(SocialAccount.owner_user_id.isnot(None)).limit(5).all()
+        for user in db.query(User).all():
+            ensure_user_workspace(db, user)
+        migrate_accounts_to_workspaces(db)
+        db.commit()
+        print("Existing users/workspaces migrated")
+    finally:
+        db.close()
+
+
+def seed_demo_logs() -> None:
+    db = SessionLocal()
+    try:
+        owned = db.query(SocialAccount).filter(SocialAccount.workspace_id.isnot(None)).limit(5).all()
         if not owned:
             return
         steps = [
@@ -115,5 +204,8 @@ def seed_demo_logs_for_user_accounts() -> None:
 
 if __name__ == "__main__":
     n = int(sys.argv[1]) if len(sys.argv) > 1 else 200
+    seed_plans()
+    seed_admin()
     seed_accounts(n)
-    seed_demo_logs_for_user_accounts()
+    bootstrap_existing_users()
+    seed_demo_logs()

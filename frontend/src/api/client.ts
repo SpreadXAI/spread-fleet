@@ -4,7 +4,61 @@ export type User = {
   id: number
   email: string
   display_name: string
+  is_admin: boolean
+  active_workspace_id: number | null
   created_at: string
+}
+
+export type WorkspacePlan = {
+  id: number
+  code: string
+  name: string
+  description: string
+  max_accounts: number
+  max_members: number
+  max_schedules_per_account: number
+  price_monthly: number
+  enabled: boolean
+}
+
+export type Workspace = {
+  id: number
+  name: string
+  owner_user_id: number
+  plan: WorkspacePlan | null
+  member_count: number
+  account_count: number
+  created_at: string
+}
+
+export type WorkspaceMember = {
+  user_id: number
+  email: string
+  display_name: string
+  role: string
+  joined_at: string
+}
+
+export type WorkspaceInvitation = {
+  id: number
+  email: string
+  status: string
+  created_at: string
+}
+
+export type AdminOverview = {
+  total_users: number
+  total_workspaces: number
+  total_social_accounts: number
+  accounts_available: number
+  accounts_assigned: number
+  total_plans: number
+}
+
+export type AdminWorkspaceDetail = Workspace & {
+  members: WorkspaceMember[]
+  pending_invites: WorkspaceInvitation[]
+  accounts: SocialAccount[]
 }
 
 export type SocialAccount = {
@@ -20,6 +74,7 @@ export type SocialAccount = {
   followers: number
   status: string
   owner_user_id: number | null
+  workspace_id?: number | null
 }
 
 export type DashboardStats = {
@@ -28,6 +83,8 @@ export type DashboardStats = {
   active_schedules: number
   batch_tasks: number
   recent_logs: number
+  workspace_name: string | null
+  workspace_members: number
 }
 
 export type Schedule = {
@@ -100,6 +157,23 @@ export const api = {
   me: (token: string) => request<User>('/auth/me', token),
   updateProfile: (token: string, body: { display_name: string }) =>
     request<User>('/auth/profile', token, { method: 'PUT', body: JSON.stringify(body) }),
+
+  listWorkspaces: (token: string) => request<Workspace[]>('/workspaces', token),
+  currentWorkspace: (token: string) => request<Workspace>('/workspaces/current', token),
+  switchWorkspace: (token: string, workspaceId: number) =>
+    request<Workspace>('/workspaces/switch', token, {
+      method: 'POST',
+      body: JSON.stringify({ workspace_id: workspaceId }),
+    }),
+  workspaceMembers: (token: string) => request<WorkspaceMember[]>('/workspaces/current/members', token),
+  inviteMember: (token: string, email: string) =>
+    request<WorkspaceInvitation>('/workspaces/current/invitations', token, {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    }),
+  pendingInvites: (token: string) =>
+    request<WorkspaceInvitation[]>('/workspaces/current/invitations', token),
+
   dashboard: (token: string) => request<DashboardStats>('/dashboard', token),
   marketAccounts: (token: string, skip = 0, limit = 50) =>
     request<SocialAccount[]>(`/market/accounts?skip=${skip}&limit=${limit}`, token),
@@ -137,4 +211,14 @@ export const api = {
   ) =>
     request<BatchTask>('/batch-tasks', token, { method: 'POST', body: JSON.stringify(body) }),
   executionLogs: (token: string) => request<ExecutionLog[]>('/execution-logs', token),
+
+  adminOverview: (token: string) => request<AdminOverview>('/admin/overview', token),
+  adminWorkspaces: (token: string) => request<Workspace[]>('/admin/workspaces', token),
+  adminWorkspaceDetail: (token: string, id: number) =>
+    request<AdminWorkspaceDetail>(`/admin/workspaces/${id}`, token),
+  adminPlans: (token: string) => request<WorkspacePlan[]>('/admin/plans', token),
+  adminUpdatePlan: (token: string, id: number, body: Partial<WorkspacePlan>) =>
+    request<WorkspacePlan>(`/admin/plans/${id}`, token, { method: 'PUT', body: JSON.stringify(body) }),
+  adminAssignPlan: (token: string, workspaceId: number, planId: number) =>
+    request<Workspace>(`/admin/workspaces/${workspaceId}/plan/${planId}`, token, { method: 'PUT' }),
 }

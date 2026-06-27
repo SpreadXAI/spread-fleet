@@ -8,11 +8,16 @@
       </div>
     </div>
 
+    <p v-if="stats?.workspace_name" class="text-sm text-slate-500">
+      当前团队空间：<strong>{{ stats.workspace_name }}</strong>（{{ stats.workspace_members }} 名成员共享数据）
+    </p>
+
     <div class="grid gap-6 lg:grid-cols-2">
       <div class="card p-6">
         <h2 class="font-semibold text-slate-900">快速开始</h2>
         <ul class="mt-4 space-y-3 text-sm text-slate-600">
-          <li>1. 在「账号市场」浏览并购买测试账号</li>
+          <li>1. 在「团队空间」邀请成员，同空间共享已购账号</li>
+          <li>2. 在「账号市场」为当前空间购买账号</li>
           <li>2. 在「我的账号」配置人设与 Prompt</li>
           <li>3. 为每个账号设置最多 3 次/天的定时任务（每次 30 分钟）</li>
           <li>4. 使用「批量任务」让多账号同时执行同一任务</li>

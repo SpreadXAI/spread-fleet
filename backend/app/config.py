@@ -18,9 +18,12 @@ class Settings(BaseSettings):
     database_name: str = Field(default="tactile", validation_alias="DATABASE_NAME")
     database_schema: str = "agent_ops_test"
 
-    jwt_secret: str = "agent-ops-test-secret-change-in-prod"
+    jwt_secret: str = "spread-fleet-test-secret-change-in-prod"
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 60 * 24 * 7
+
+    admin_email: str = "admin@spreadx.ai"
+    admin_password: str = "SpreadFleet@Admin2026"
 
     cors_origins: str = "*"
 

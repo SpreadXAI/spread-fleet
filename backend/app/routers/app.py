@@ -15,6 +15,8 @@ from app.models import (
     SocialAccount,
     TaskStatus,
     User,
+    Workspace,
+    WorkspaceMember,
 )
 from app.schemas import (
     BatchTaskCreate,
@@ -27,10 +29,16 @@ from app.schemas import (
     ScheduleOut,
     SocialAccountOut,
 )
+from app.workspace import ensure_user_workspace, get_membership
 
 router = APIRouter(tags=["app"])
 
 MAX_SCHEDULES_PER_ACCOUNT = 3
+
+
+def _active_workspace(db: Session, user: User) -> Workspace:
+    ws = ensure_user_workspace(db, user)
+    return ws
 
 
 @router.get("/dashboard", response_model=DashboardStats)
@@ -38,26 +46,34 @@ def dashboard(
     db: Annotated[Session, Depends(get_db)],
     current_user: Annotated[User, Depends(get_current_user)],
 ) -> DashboardStats:
-    owned = db.query(SocialAccount).filter(SocialAccount.owner_user_id == current_user.id).count()
+    ws = _active_workspace(db, current_user)
+    owned = db.query(SocialAccount).filter(SocialAccount.workspace_id == ws.id).count()
     market = db.query(SocialAccount).filter(SocialAccount.status == AccountStatus.available).count()
+    member_ids = [
+        m.user_id for m in db.query(WorkspaceMember).filter(WorkspaceMember.workspace_id == ws.id).all()
+    ]
     schedules = (
         db.query(ScheduledTask)
-        .filter(ScheduledTask.user_id == current_user.id, ScheduledTask.enabled.is_(True))
+        .join(SocialAccount)
+        .filter(SocialAccount.workspace_id == ws.id, ScheduledTask.enabled.is_(True))
         .count()
     )
-    batches = db.query(BatchTask).filter(BatchTask.user_id == current_user.id).count()
+    batches = db.query(BatchTask).filter(BatchTask.workspace_id == ws.id).count()
     logs = (
         db.query(ExecutionLog)
         .join(SocialAccount)
-        .filter(SocialAccount.owner_user_id == current_user.id)
+        .filter(SocialAccount.workspace_id == ws.id)
         .count()
     )
+    members = db.query(WorkspaceMember).filter(WorkspaceMember.workspace_id == ws.id).count()
     return DashboardStats(
         total_accounts_owned=owned,
         available_market=market,
         active_schedules=schedules,
         batch_tasks=batches,
         recent_logs=logs,
+        workspace_name=ws.name,
+        workspace_members=members,
     )
 
 
@@ -71,7 +87,7 @@ def list_market_accounts(
     del current_user
     rows = (
         db.query(SocialAccount)
-        .filter(SocialAccount.status == AccountStatus.available, SocialAccount.owner_user_id.is_(None))
+        .filter(SocialAccount.status == AccountStatus.available, SocialAccount.workspace_id.is_(None))
         .order_by(SocialAccount.id)
         .offset(skip)
         .limit(min(limit, 100))
@@ -85,9 +101,10 @@ def list_my_accounts(
     db: Annotated[Session, Depends(get_db)],
     current_user: Annotated[User, Depends(get_current_user)],
 ) -> list[SocialAccountOut]:
+    ws = _active_workspace(db, current_user)
     rows = (
         db.query(SocialAccount)
-        .filter(SocialAccount.owner_user_id == current_user.id)
+        .filter(SocialAccount.workspace_id == ws.id)
         .order_by(SocialAccount.id)
         .all()
     )
@@ -100,10 +117,17 @@ def purchase_account(
     db: Annotated[Session, Depends(get_db)],
     current_user: Annotated[User, Depends(get_current_user)],
 ) -> SocialAccountOut:
+    ws = _active_workspace(db, current_user)
+    if ws.plan:
+        current_count = db.query(SocialAccount).filter(SocialAccount.workspace_id == ws.id).count()
+        if current_count >= ws.plan.max_accounts:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Account limit reached for plan")
+
     account = db.get(SocialAccount, account_id)
-    if account is None or account.status != AccountStatus.available or account.owner_user_id is not None:
+    if account is None or account.status != AccountStatus.available or account.workspace_id is not None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not available")
     account.owner_user_id = current_user.id
+    account.workspace_id = ws.id
     account.status = AccountStatus.sold
     db.commit()
     db.refresh(account)
@@ -116,7 +140,7 @@ def get_my_account(
     db: Annotated[Session, Depends(get_db)],
     current_user: Annotated[User, Depends(get_current_user)],
 ) -> SocialAccountOut:
-    account = _owned_account(db, current_user, account_id)
+    account = _workspace_account(db, current_user, account_id)
     return SocialAccountOut.model_validate(account)
 
 
@@ -126,12 +150,8 @@ def get_prompt(
     db: Annotated[Session, Depends(get_db)],
     current_user: Annotated[User, Depends(get_current_user)],
 ) -> PromptOut | None:
-    _owned_account(db, current_user, account_id)
-    prompt = (
-        db.query(AccountPrompt)
-        .filter(AccountPrompt.account_id == account_id, AccountPrompt.user_id == current_user.id)
-        .first()
-    )
+    _workspace_account(db, current_user, account_id)
+    prompt = db.query(AccountPrompt).filter(AccountPrompt.account_id == account_id).first()
     return PromptOut.model_validate(prompt) if prompt else None
 
 
@@ -142,17 +162,14 @@ def upsert_prompt(
     db: Annotated[Session, Depends(get_db)],
     current_user: Annotated[User, Depends(get_current_user)],
 ) -> PromptOut:
-    _owned_account(db, current_user, account_id)
-    prompt = (
-        db.query(AccountPrompt)
-        .filter(AccountPrompt.account_id == account_id, AccountPrompt.user_id == current_user.id)
-        .first()
-    )
+    _workspace_account(db, current_user, account_id)
+    prompt = db.query(AccountPrompt).filter(AccountPrompt.account_id == account_id).first()
     if prompt is None:
         prompt = AccountPrompt(account_id=account_id, user_id=current_user.id)
         db.add(prompt)
     prompt.persona = payload.persona
     prompt.prompt_text = payload.prompt_text
+    prompt.user_id = current_user.id
     db.commit()
     db.refresh(prompt)
     return PromptOut.model_validate(prompt)
@@ -164,10 +181,10 @@ def list_schedules(
     db: Annotated[Session, Depends(get_db)],
     current_user: Annotated[User, Depends(get_current_user)],
 ) -> list[ScheduleOut]:
-    _owned_account(db, current_user, account_id)
+    _workspace_account(db, current_user, account_id)
     rows = (
         db.query(ScheduledTask)
-        .filter(ScheduledTask.account_id == account_id, ScheduledTask.user_id == current_user.id)
+        .filter(ScheduledTask.account_id == account_id)
         .order_by(ScheduledTask.start_time)
         .all()
     )
@@ -181,16 +198,14 @@ def create_schedule(
     db: Annotated[Session, Depends(get_db)],
     current_user: Annotated[User, Depends(get_current_user)],
 ) -> ScheduleOut:
-    _owned_account(db, current_user, account_id)
-    count = (
-        db.query(ScheduledTask)
-        .filter(ScheduledTask.account_id == account_id, ScheduledTask.user_id == current_user.id)
-        .count()
-    )
-    if count >= MAX_SCHEDULES_PER_ACCOUNT:
+    ws = _active_workspace(db, current_user)
+    _workspace_account(db, current_user, account_id)
+    max_sched = ws.plan.max_schedules_per_account if ws.plan else MAX_SCHEDULES_PER_ACCOUNT
+    count = db.query(ScheduledTask).filter(ScheduledTask.account_id == account_id).count()
+    if count >= max_sched:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Maximum {MAX_SCHEDULES_PER_ACCOUNT} schedules per account",
+            detail=f"Maximum {max_sched} schedules per account",
         )
     task = ScheduledTask(
         account_id=account_id,
@@ -212,14 +227,10 @@ def delete_schedule(
     db: Annotated[Session, Depends(get_db)],
     current_user: Annotated[User, Depends(get_current_user)],
 ) -> dict[str, str]:
-    _owned_account(db, current_user, account_id)
+    _workspace_account(db, current_user, account_id)
     task = (
         db.query(ScheduledTask)
-        .filter(
-            ScheduledTask.id == schedule_id,
-            ScheduledTask.account_id == account_id,
-            ScheduledTask.user_id == current_user.id,
-        )
+        .filter(ScheduledTask.id == schedule_id, ScheduledTask.account_id == account_id)
         .first()
     )
     if task is None:
@@ -234,10 +245,11 @@ def list_batch_tasks(
     db: Annotated[Session, Depends(get_db)],
     current_user: Annotated[User, Depends(get_current_user)],
 ) -> list[BatchTaskOut]:
+    ws = _active_workspace(db, current_user)
     rows = (
         db.query(BatchTask)
         .options(joinedload(BatchTask.members))
-        .filter(BatchTask.user_id == current_user.id)
+        .filter(BatchTask.workspace_id == ws.id)
         .order_by(BatchTask.id.desc())
         .all()
     )
@@ -250,11 +262,13 @@ def create_batch_task(
     db: Annotated[Session, Depends(get_db)],
     current_user: Annotated[User, Depends(get_current_user)],
 ) -> BatchTaskOut:
+    ws = _active_workspace(db, current_user)
     for aid in payload.account_ids:
-        _owned_account(db, current_user, aid)
+        _workspace_account(db, current_user, aid)
 
     batch = BatchTask(
         user_id=current_user.id,
+        workspace_id=ws.id,
         name=payload.name,
         prompt_text=payload.prompt_text,
         start_time=payload.start_time,
@@ -282,10 +296,11 @@ def list_execution_logs(
     current_user: Annotated[User, Depends(get_current_user)],
     limit: int = 50,
 ) -> list[ExecutionLogOut]:
+    ws = _active_workspace(db, current_user)
     rows = (
         db.query(ExecutionLog, SocialAccount.handle)
         .join(SocialAccount, ExecutionLog.account_id == SocialAccount.id)
-        .filter(SocialAccount.owner_user_id == current_user.id)
+        .filter(SocialAccount.workspace_id == ws.id)
         .order_by(ExecutionLog.created_at.desc())
         .limit(min(limit, 200))
         .all()
@@ -298,9 +313,12 @@ def list_execution_logs(
     return result
 
 
-def _owned_account(db: Session, user: User, account_id: int) -> SocialAccount:
+def _workspace_account(db: Session, user: User, account_id: int) -> SocialAccount:
+    ws = _active_workspace(db, user)
+    if get_membership(db, user.id, ws.id) is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not in workspace")
     account = db.get(SocialAccount, account_id)
-    if account is None or account.owner_user_id != user.id:
+    if account is None or account.workspace_id != ws.id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found")
     return account
 

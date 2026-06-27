@@ -2,7 +2,7 @@ from datetime import datetime, time
 
 from pydantic import BaseModel, Field
 
-from app.models import AccountStatus, AccountTier, TaskStatus
+from app.models import AccountStatus, AccountTier, InvitationStatus, TaskStatus, WorkspaceMemberRole
 
 
 class UserRegister(BaseModel):
@@ -23,6 +23,8 @@ class UserOut(BaseModel):
     id: int
     email: str
     display_name: str
+    is_admin: bool = False
+    active_workspace_id: int | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -32,6 +34,97 @@ class TokenOut(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user: UserOut
+
+
+class WorkspacePlanOut(BaseModel):
+    id: int
+    code: str
+    name: str
+    description: str
+    max_accounts: int
+    max_members: int
+    max_schedules_per_account: int
+    price_monthly: float
+    enabled: bool
+
+    model_config = {"from_attributes": True}
+
+
+class WorkspacePlanUpdate(BaseModel):
+    name: str | None = None
+    description: str | None = None
+    max_accounts: int | None = Field(default=None, ge=1)
+    max_members: int | None = Field(default=None, ge=1)
+    max_schedules_per_account: int | None = Field(default=None, ge=1)
+    price_monthly: float | None = Field(default=None, ge=0)
+    enabled: bool | None = None
+
+
+class WorkspacePlanCreate(BaseModel):
+    code: str = Field(min_length=2, max_length=32)
+    name: str = Field(min_length=1, max_length=64)
+    description: str = ""
+    max_accounts: int = Field(default=10, ge=1)
+    max_members: int = Field(default=5, ge=1)
+    max_schedules_per_account: int = Field(default=3, ge=1)
+    price_monthly: float = Field(default=0, ge=0)
+    enabled: bool = True
+
+
+class WorkspaceMemberOut(BaseModel):
+    user_id: int
+    email: str
+    display_name: str
+    role: WorkspaceMemberRole
+    joined_at: datetime
+
+
+class WorkspaceInvitationOut(BaseModel):
+    id: int
+    email: str
+    status: InvitationStatus
+    created_at: datetime
+
+
+class WorkspaceOut(BaseModel):
+    id: int
+    name: str
+    owner_user_id: int
+    plan: WorkspacePlanOut | None = None
+    member_count: int = 0
+    account_count: int = 0
+    created_at: datetime
+
+
+class WorkspaceCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=128)
+
+
+class WorkspaceUpdate(BaseModel):
+    name: str = Field(min_length=1, max_length=128)
+
+
+class WorkspaceInviteCreate(BaseModel):
+    email: str = Field(min_length=3, max_length=255)
+
+
+class WorkspaceSwitch(BaseModel):
+    workspace_id: int
+
+
+class AdminOverview(BaseModel):
+    total_users: int
+    total_workspaces: int
+    total_social_accounts: int
+    accounts_available: int
+    accounts_assigned: int
+    total_plans: int
+
+
+class AdminWorkspaceDetail(WorkspaceOut):
+    members: list[WorkspaceMemberOut]
+    pending_invites: list[WorkspaceInvitationOut]
+    accounts: list["SocialAccountOut"]
 
 
 class SocialAccountOut(BaseModel):
@@ -47,6 +140,7 @@ class SocialAccountOut(BaseModel):
     followers: int
     status: AccountStatus
     owner_user_id: int | None
+    workspace_id: int | None = None
 
     model_config = {"from_attributes": True}
 
@@ -124,3 +218,8 @@ class DashboardStats(BaseModel):
     active_schedules: int
     batch_tasks: int
     recent_logs: int
+    workspace_name: str | None = None
+    workspace_members: int = 0
+
+
+AdminWorkspaceDetail.model_rebuild()

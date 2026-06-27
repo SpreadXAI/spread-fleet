@@ -49,6 +49,7 @@ const auth = useAuthStore()
 
 const navItems = [
   { to: '/', label: '总览', icon: '📊' },
+  { to: '/team', label: '团队空间', icon: '👥' },
   { to: '/market', label: '账号市场', icon: '🛒' },
   { to: '/my-accounts', label: '我的账号', icon: '👤' },
   { to: '/batch-tasks', label: '批量任务', icon: '⚡' },
@@ -58,7 +59,7 @@ const navItems = [
 
 const titles: Record<string, { title: string; subtitle?: string }> = {
   dashboard: { title: '总览', subtitle: '账号与任务运行概况' },
-  market: { title: '账号市场', subtitle: '浏览并购买可用社交账号' },
+  team: { title: '团队空间', subtitle: '成员协作与邮箱邀请' },
   'my-accounts': { title: '我的账号', subtitle: '已购账号与定时任务管理' },
   'account-detail': { title: '账号详情', subtitle: '人设、Prompt 与定时调度' },
   'batch-tasks': { title: '批量任务', subtitle: '多账号同时执行同一任务' },

@@ -31,6 +31,18 @@
         <dd class="font-medium">{{ auth.user ? formatTime(auth.user.created_at) : '—' }}</dd>
       </div>
     </dl>
+
+    <div v-if="auth.user?.is_admin" class="border-t border-slate-100 pt-6">
+      <a
+        href="/spreadfleet/admin"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="btn-secondary inline-flex w-full justify-center"
+      >
+        打开管理台 ↗
+      </a>
+      <p class="mt-2 text-xs text-slate-500">在新标签页中打开平台管理后台</p>
+    </div>
   </div>
 </template>
 
