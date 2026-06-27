@@ -31,8 +31,7 @@ python3 scripts/deploy-singapore.py
 
 ## 管理员
 
-- 邮箱：`admin@spreadx.ai`
-- 密码：`SpiderRadar@Admin2026`
+见 [Cloud.md](./Cloud.md)（含普通测试账号 `qa-test@spreadx.ai`）。
 
 ## E2E
 

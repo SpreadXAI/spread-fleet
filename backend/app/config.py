@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     admin_email: str = "admin@spreadx.ai"
     admin_password: str = "SpiderRadar@Admin2026"
 
+    qa_email: str = "qa-test@spreadx.ai"
+    qa_password: str = "SpiderRadar@Test2026"
+
     cors_origins: str = "*"
 
     @property

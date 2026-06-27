@@ -120,6 +120,34 @@ def seed_admin() -> None:
         db.close()
 
 
+def seed_qa_user() -> None:
+    settings = get_settings()
+    db = SessionLocal()
+    try:
+        email = settings.qa_email.strip().lower()
+        user = db.query(User).filter((User.email == email) | (User.username == email)).first()
+        if user is None:
+            user = User(
+                username=email,
+                email=email,
+                display_name="QA 测试",
+                password_hash=hash_password(settings.qa_password),
+                is_admin=False,
+            )
+            db.add(user)
+            db.flush()
+            create_workspace(db, owner=user, name="QA 测试空间")
+            db.commit()
+            print(f"QA user created: {email}")
+        else:
+            user.password_hash = hash_password(settings.qa_password)
+            ensure_user_workspace(db, user)
+            db.commit()
+            print(f"QA user updated: {email}")
+    finally:
+        db.close()
+
+
 def seed_accounts(count: int = 200) -> None:
     ensure_schema()
     Base.metadata.create_all(bind=engine)
@@ -206,6 +234,7 @@ if __name__ == "__main__":
     n = int(sys.argv[1]) if len(sys.argv) > 1 else 200
     seed_plans()
     seed_admin()
+    seed_qa_user()
     seed_accounts(n)
     bootstrap_existing_users()
     seed_demo_logs()
